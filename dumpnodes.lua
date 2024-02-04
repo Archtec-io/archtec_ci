@@ -41,8 +41,6 @@ function archtec_ci.dumpnodes()
 				print("ignored(2): " .. nn)
 			else
 				local tex = get_tile(tiles, 1)
-				print(nn)
-				print(tex)
 				if tex == nil then break end
 				tex = (tex .. "^"):match("%(*(.-)%)*^") -- strip modifiers
 				if tex == nil then break end
