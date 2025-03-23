@@ -2,8 +2,19 @@ local function get_tile(tiles, n)
 	local tile = tiles[n]
 	if type(tile) == "table" then
 		return tile.name or tile.image
+	elseif type(tile) == "string" then
+		return tile
 	end
-	return tile
+end
+
+local function strip_texture(tex)
+	tex = (tex .. "^"):match("%(*(.-)%)*^") -- strip modifiers
+	if tex:find("[combine", 1, true) then
+		tex = tex:match(".-=([^:]-)") -- extract first texture
+	elseif tex:find("[png", 1, true) then
+		return nil -- can"t
+	end
+	return tex
 end
 
 local function pairs_s(dict)
@@ -17,8 +28,8 @@ end
 
 function archtec_ci.dumpnodes()
 	local ntbl = {}
-	for _, nn in pairs_s(minetest.registered_nodes) do
-		local prefix, name = nn:match("(.*):(.*)")
+	for _, nn in pairs_s(core.registered_nodes) do
+		local prefix, name = nn:match("(.-):(.*)")
 		if prefix == nil or name == nil then
 			print("ignored(1): " .. nn)
 		else
@@ -28,31 +39,32 @@ function archtec_ci.dumpnodes()
 			ntbl[prefix][name] = true
 		end
 	end
-
-	local out = ""
+	local out, err = io.open(core.get_worldpath() .. "/nodes.txt", "wb")
+	if not out then
+		return true, err
+	end
 	local n = 0
 	for _, prefix in pairs_s(ntbl) do
-		out = out .. ("# " .. prefix .. "\n")
+		out:write("# " .. prefix .. "\n")
 		for _, name in pairs_s(ntbl[prefix]) do
 			local nn = prefix .. ":" .. name
-			local nd = minetest.registered_nodes[nn]
+			local nd = core.registered_nodes[nn]
 			local tiles = nd.tiles or nd.tile_images
 			if tiles == nil or nd.drawtype == "airlike" then
 				print("ignored(2): " .. nn)
 			else
 				local tex = get_tile(tiles, 1)
-				if tex == nil then break end
-				tex = (tex .. "^"):match("%(*(.-)%)*^") -- strip modifiers
-				if tex == nil then break end
-				if tex:find("[combine", 1, true) then
-					tex = tex:match(".-=([^:]-)") -- extract first texture
+				tex = tex and strip_texture(tex)
+				if not tex then
+					print("ignored(3): " .. nn)
+				else
+					out:write(nn .. " " .. tex .. "\n")
+					n = n + 1
 				end
-				if tex == nil then break end
-				out = out .. (nn .. " " .. tex .. "\n")
-				n = n + 1
 			end
 		end
-		out = out .. ("\n")
+		out:write("\n")
 	end
-	minetest.safe_file_write(minetest.get_worldpath() .. "/nodes.txt", out)
+	out:close()
+	return true, n .. " nodes dumped."
 end
